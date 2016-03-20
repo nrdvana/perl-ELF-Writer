@@ -1,0 +1,60 @@
+package ELF::Writer::Linux_x86_64;
+use Moo 2;
+use namespace::clean;
+
+extends 'ELF::Writer';
+
+# ABSTRACT: ELF::Writer with defaults for Linux on x86_64
+
+=head1 DESCRPTION
+
+This module is the same as writer, but supplies the following defaults
+when constructed:
+
+=head2 ELF attributes
+
+=over 16
+
+=item class
+
+'64-bit'
+
+=item data
+
+'little-endian'
+
+=item osabi
+
+'Linux'
+
+=item machine
+
+'x86-64'
+
+=back
+
+=cut
+
+has '+class_num'    => ( default => sub { 2 } );
+has '+data_num'     => ( default => sub { 1 } );
+has '+osabi_num'    => ( default => sub { 3 } );
+has '+machine_num'  => ( default => sub { 0x3E } );
+
+=head2 Segment attributes
+
+=over 16
+
+=item align
+
+4096
+
+=back
+
+=cut
+
+sub _apply_segment_defaults {
+	my ($self, $seg)= @_;
+	$seg->align(4096) unless $seg->align;
+}
+
+1;
