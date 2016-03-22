@@ -4,6 +4,8 @@ use Carp;
 use IO::File;
 use namespace::clean;
 
+our $VERSION; BEGIN { $VERSION= '0.001' }
+
 # ABSTRACT: Encode elf files with pure-perl
 
 =head1 DESCRPTION
@@ -39,8 +41,15 @@ user-friendly features.
 
 =cut
 
-our (%ClassEnum, %DataEnum, %OsabiEnum, %TypeEnum, %MachineEnum, %SegmentTypeEnum);
-our (%ClassEnum_r, %DataEnum_r, %OsabiEnum_r, %TypeEnum_r, %MachineEnum_r, %SegmentTypeEnum_r);
+our (
+	%ClassEnum, %ClassEnum_r,
+	%DataEnum, %DataEnum_r,
+	%OsabiEnum, %OsabiEnum_r,
+	%TypeEnum, %TypeEnum_r,
+	%MachineEnum, %MachineEnum_r,
+	%SegmentTypeEnum, %SegmentTypeEnum_r,
+	%SectionTypeEnum, %SectionTypeEnum_r,
+);
 
 sub _create_enum {
 	my ($field_name, $enum_name, @mapping)= @_;
@@ -59,7 +68,7 @@ sub _create_enum {
 	1' || die $@;
 }
 
-our $Magic=          "\x7fELF";
+our $Magic; BEGIN { $Magic= "\x7fELF"; }
 
 BEGIN {
 _create_enum( 'class', 'ClassEnum',
@@ -78,6 +87,7 @@ _create_enum( 'osabi', 'OsabiEnum',
 );
 
 _create_enum( 'type', 'TypeEnum',
+	0 => 'none',
 	1 => 'relocatable',
 	2 => 'executable',
 	3 => 'shared',
@@ -85,16 +95,39 @@ _create_enum( 'type', 'TypeEnum',
 );
 
 _create_enum( 'machine', 'MachineEnum',
-	0x02 => 'Sparc', 0x03 => 'x86', 0x08 => 'MIPS', 0x14 => 'PowerPC',
+	0x02 => 'SPARC', 0x03 => 'i386', 0x04 => 'Motorola68K', 0x05 => 'Motorola88K',
+	0x07 => 'i860', 0x08 => 'MIPS-RS3000', 0xA0 => 'MIPS-RS4000',
+	0x14 => 'PowerPC',
 	0x28 => 'ARM', 0x2A => 'SuperH', 0x32 => 'IA-64', 0x3E => 'x86-64',
 	0xB7 => 'AArch64'
 );
 
 _create_enum( 'segment type', 'SegmentTypeEnum',
-	1 => 'load',
-	3 => 'interp',
-	4 => 'note'
+	0 => 'null',    # Ignored entry in program header table
+	1 => 'load',    # Load segment into program address space
+	2 => 'dynamic', # Dynamic linking information
+	3 => 'interp',  # Specifies location of string defining path to interpreter
+	4 => 'note',    # Specifies location of auxillary information
+	5 => 'shlib',   # ??
+	6 => 'phdr',    # Specifies location of the program header loaded into process image
 );
+
+_create_enum( 'section type', 'SectionTypeEnum',
+	0 => 'null',     # Ignore this section entry
+	1 => 'progbits', # Contents of section are program specific
+	2 => 'symtab',   # symbol table
+	3 => 'strtab',   # string table
+	4 => 'rela',     # relocation table with specific addends
+	5 => 'hash',     # symbol hash table
+	6 => 'dynamic',  # dynamic linking information
+	7 => 'note',     # various identification of file
+	8 => 'nobits',   # program-specific "pointer" using offset field.  has no length.
+	9 => 'rel',      # relocation table without specific addends
+	10 => 'shlib',   # ??
+	11 => 'dynsym',  # symbol table
+	12 => 'num',     # ??
+);
+
 } # BEGIN
 
 =head1 ATTRIBUTES
@@ -112,7 +145,7 @@ significant byte first)  i.e. little-endian or big-endian
 
 Must be set before writing.
 
-=item ident_version
+=item header_version
 
 8-bit integer; defaults to '1' for original version of ELF.
 
@@ -144,6 +177,10 @@ Must be set before writing.
 32-bit or 64-bit pointer to address where process starts executing.
 Defaults to 0 unless type is 'executable', then you must specify it before
 writing.
+
+=item flags
+
+32 bit flags, defined per-machine.
 
 =cut
 
@@ -178,7 +215,7 @@ _enum_attribute(\&has, class => \&ClassEnum_encode, \&ClassEnum_decode);
 
 _enum_attribute(\&has, data => \&DataEnum_encode, \&DataEnum_decode);
 
-has ident_version   => ( is => 'rw', default => sub { 1 } );
+has header_version  => ( is => 'rw', default => sub { 1 } );
 
 _enum_attribute(\&has, osabi => \&OsabiEnum_encode, \&OsabiEnum_decode);
 
@@ -189,6 +226,8 @@ _enum_attribute(\&has, type => \&TypeEnum_encode, \&TypeEnum_decode);
 _enum_attribute(\&has, machine => \&MachineEnum_encode, \&MachineEnum_decode);
 
 has version         => ( is => 'rw', default => sub { 1 } );
+
+has flags           => ( is => 'rw', default => sub { 0 } );
 
 has entry_point     => ( is => 'rw' );
 
@@ -288,6 +327,7 @@ Handy alias for @{ $elf->segments }
 
 has segments     => ( is => 'rw', coerce => \&_coerce_segments, default => sub { [] } );
 sub segment_count { scalar @{ shift->segments } }
+sub segment_list { @{ shift->segments } }
 
 =item sections
 
@@ -302,10 +342,18 @@ Handy alias for $#{ $elf->sections }
 
 Handy alias for @{ $elf->sections }
 
+=item section_name_string_table_index
+
+Insex into the section array of a string-table section where the names of
+the sections are stored.
+
 =cut
 
 has sections     => ( is => 'rw', coerce => \&_coerce_sections, default => sub { [] } );
 sub section_count { scalar @{ shift->sections } }
+sub section_list { @{ shift->sections } }
+
+has section_name_string_table_idx => ( is => 'rw' );
 
 =back
 
@@ -328,71 +376,162 @@ sub serialize {
 	defined($self->can("${_}_num")->($self)) || croak "Attribute $_ is not defined"
 		for qw( class data osabi type machine );
 	defined($self->$_) || croak "Attribute $_ is not defined"
-		for qw( ident_version osabi_version version entry_point );
+		for qw( header_version osabi_version version entry_point );
 	
-	# Put segment headers right after elf header
-	my $seg_header_ofs= $self->elf_header_len;
+	# Clone the segments and sections so that our changes don't affect the
+	# configuration the user built.
+	my @segments= map { $_->clone } $self->segment_list;
+	my @sections= map { $_->clone } $self->section_list;
+	my $segment_table;
+	my $section_table;
 	
-	my $flags= 0;
-
-	# TODO: handle sections (ignored for now)
-	my $sec_header_ofs= 0;
-	my $symbol_section_idx= 0;
-	if ($self->section_count > 0) {
-		croak "Section encoding not implemented";
+	# Now apply defaults and set numbering for diagostics of errors
+	my $i= 0;
+	for (@segments) {
+		$_->_index($i++);
+		$self->_apply_segment_defaults($_);
+		
+		# There can be one segment which loads the segment table itself
+		# into the program's address space.  If used, we track the pointer
+		# to that segment.  We also clear it's 'data' and set it's 'size'
+		# to keep from confusing the code below.
+		if ($_->type_num == 6) {
+			croak "There can be only one segment of type 'phdr'"
+				if defined $segment_table;
+			$segment_table= $_;
+			$segment_table->data(undef);
+			$segment_table->size($self->segment_header_len * @segments);
+		}
+	}
+	$i= 0;
+	for (@sections) {
+		$_->_index($i++);
+		$self->_apply_section_defaults($_);
 	}
 	
+	# Build a list of every defined range of data in the file,
+	# and a list of every segment/section which needs automatically placed.
+	my @defined_ranges;
+	my @auto_offset;
+	for (@segments, @sections) {
+		# size is guaranteed to be defined by "_apply...defaults()"
+		# Data might not be defined if the user just wanted to point the
+		# segment at something, and offset might not be defined if the user
+		# just wants it appended wherever.
+		if (!defined $_->offset) {
+			push @auto_offset, $_;
+		}
+		else {
+			$_->offset >= 0 or croak $_->_name." offset cannot be negative";
+			push @defined_ranges, $_
+				if defined $_->data && length $_->data;
+		}
+	}
+	
+	if (@sections) {
+		# First section must always be the NULL section.  If the user forgot this
+		# then their indicies might be off.
+		$sections[0]->type_num == 0
+			or croak "Section 0 must be type NULL";
+		# Sections may not overlap, regardless of whether the user attached data to them
+		$self->_check_section_overlap;
+	}
+	
+	# Each segment and section can define data to be written to the file,
+	# but segments can overlap sections.  Make sure their defined data doesn't
+	# conflict, or we wouldn't know which to write.
+	my $prev;
+	my $prev_end= $self->elf_header_len;
+	my $first_data;
+	@defined_ranges= sort { $a->data_offset <=> $b->data_offset } @defined_ranges;
+	for (@defined_ranges) {
+		croak 'Data overlap between '.$_->_name.' and '.($prev? $prev->_name : 'ELF header')
+			if $_->data_offset < $prev_end;
+		$prev= $_;
+		$prev_end= $_->data_offset + $_->size;
+	}
+	
+	# For each segment or section that needs an offset assigned, append to
+	# end of file.
+	for (@auto_offset) {
+		my $align= $_->_required_file_alignment;
+		$prev_end= int(($prev_end + $align - 1) / $align) * $align;
+		$_->offset($prev_end);
+		push @defined_ranges, $_ if defined $_->data && length $_->data;
+		$prev_end += $_->size;
+	}
+	
+	# Now, every segment and section have an offset and a length.
+	# We can now encode the tables.
+	my @insert;
+	if (@segments) {
+		my $segment_table_data= '';
+		$segment_table_data .= $self->_serialize_segment_header($_)
+			for @segments;
+		# The user might have defined this segment on their own.
+		# Otherwise we just create a dummy to use below.
+		if (!defined $segment_table) {
+			$segment_table= ELF::Writer::Segment->new(
+				align => 8,
+				filesize => length($segment_table_data),
+				data => $segment_table_data,
+			);
+			push @insert, $segment_table;
+		} else {
+			$segment_table->data($segment_table_data);
+		}
+	}
+	if (@sections) {
+		my $section_table_data= '';
+		$section_table_data .= $self->_serialize_section_header($_)
+			for @sections;
+		
+		$section_table= ELF::Writer::Segment->new(
+			align => 8,
+			filesize => length($section_table_data),
+			data => $section_table_data,
+		);
+		push @insert, $section_table;
+	}
+	
+	# Find a spot for the segment and/or section tables.
+	# Due to alignment, there is probably room to squeeze the table(s) inbetween
+	# other defined ranges.  Else, put them at the end.
+	$prev_end= $self->elf_header_len;
+	for (my $i= 0; @insert and $i <= @defined_ranges; ++$i) {
+		my $align= $insert[0]->_required_file_alignment;
+		$prev_end= int(($prev_end + $align-1) / $align) * $align;
+		if ($i == @defined_ranges
+			or $prev_end + $insert[0]->size <= $defined_ranges[$i]->data_offset
+		) {
+			$insert[0]->offset($prev_end);
+			splice @defined_ranges, $i, 0, shift @insert;
+		}
+	}
+	
+	# Now, we can finally encode the ELF header.
 	my $header= pack($self->_elf_header_packstr,
-		$Magic, $self->class_num, $self->data_num, $self->ident_version, $self->osabi_num,
-		$self->osabi_version, '',
+		$Magic, $self->class_num, $self->data_num, $self->header_version,
+		$self->osabi_num, $self->osabi_version, '',
 		$self->type_num, $self->machine_num, $self->version, $self->entry_point,
-		$seg_header_ofs, $sec_header_ofs, $flags,
-		$self->elf_header_len,
+		($segment_table? $segment_table->offset : 0),
+		($section_table? $section_table->offset : 0),
+		$self->flags, $self->elf_header_len,
 		$self->segment_header_elem_len, $self->segment_count,
 		$self->section_header_elem_len, $self->section_count,
-		$symbol_section_idx
+		$self->section_name_string_table_idx || 0,
 	);
 	# sanity check
 	length($header) == $self->elf_header_len
 		or croak "Elf header len mismatch";
 	
-	my %segment_padding;
-	
-	# Auto-concat the segments with undefined offsets, and calculate the
-	# padding before the payload of each segment.
-	my $data_pos= length($header);
-	$data_pos += $self->segment_header_elem_len * $self->segment_count;
-	for my $seg (@{$self->segments}) {
-		# let subclasses supply defaults
-		$self->_apply_segment_defaults($seg);
-		
-		my $fileofs= $seg->offset;
-		my $data_offset= $seg->data_offset || 0;
-		# If undef, automatically pack the segment according to alignment
-		# But back up by as much as data_offset.
-		if (!defined $fileofs) {
-			my $align= $seg->align
-				or croak "Must specify segment->align if you want to auto-calculate segment file offsets";
-			$fileofs= int(($data_pos - $data_offset + $align - 1)/$align) * $align;
-			$fileofs= 0 if $fileofs < 0;
-			$seg->offset($fileofs);
-		}
-		$segment_padding{$seg}= $fileofs + $data_offset - $data_pos;
-		$segment_padding{$seg} >= 0
-			or croak "Segment overlaps previous by more than data_offset";
-		$data_pos += $segment_padding{$seg} + length($seg->data);
+	# Write out the header and each range of defined bytes, padded with NULs as needed.
+	my $data= $header;
+	for (@defined_ranges) {
+		my $pad= $_->data_offset - length($data);
+		$data .= "\0" x $pad if $pad;
+		$data .= $_->data;
 	}
-	
-	# Now build the file
-	my $data= join('',
-		$header,
-		( map { $self->_serialize_segment_header($_) } @{$self->segments} ),
-		( map { ("\0" x $segment_padding{$_}), $_->data } @{$self->segments} ),
-		# TODO, add sections and section headers
-	);
-	# Sanity check
-	length($data) == $data_pos
-		or die "Bug: size calculation $data_pos != ".length($data);
 	return $data;
 }
 
@@ -408,33 +547,38 @@ sub _serialize_segment_header {
 	defined $seg->$_ or croak "Attribute $_ is not defined"
 		for qw( offset virt_addr align );
 	
-	my $flags= ($seg->readable? 4 : 0)
-		+ ($seg->writeable? 2 : 0)
-		+ ($seg->executable? 1 : 0);
-	
 	my $filesize= $seg->filesize;
 	$filesize= length($seg->data) + $seg->data_offset
 		unless defined $filesize;
 	
+	my $align= $seg->align;
 	my $memsize= $seg->memsize;
-	$memsize= $filesize
+	$memsize= int(($filesize + $align - 1) / $align) * $align
 		unless defined $memsize;
 	
 	# 'flags' moves depending on 32 vs 64 bit, so changing the pack string isn't enough
 	return $self->_encoding < 2?
 		pack($self->_segment_header_packstr,
 			$seg->type_num, $seg->offset, $seg->virt_addr, $seg->phys_addr // 0,
-			$filesize, $memsize, $flags, $seg->align
+			$filesize, $memsize, $seg->flags, $seg->align
 		)
 		: pack($self->_segment_header_packstr,
-			$seg->type_num, $flags, $seg->offset, $seg->virt_addr,
+			$seg->type_num, $seg->flags, $seg->offset, $seg->virt_addr,
 			$seg->phys_addr // 0, $filesize, $memsize, $seg->align
 		);
 }
 
 sub _serialize_section_header {
 	my ($self, $sec)= @_;
-	croak "Section encoding is not implemented";
+	
+	# Make sure all required attributes are defined
+	(defined $sec->can("${_}_num")->($self)) || croak "Attribute $_ is not defined"
+		for qw( type );
+	defined $sec->$_ or croak "Attribute $_ is not defined"
+		for qw( name flags addr offset size link info addralign entsize );
+	
+	# Faster than checking bit lengths on every field ourself
+	use warnings FATAL => 'pack';
 	
 	return pack($self->_section_header_packstr,
 		$sec->name, $sec->type, $sec->flags, $sec->addr, $sec->offset,
@@ -456,11 +600,80 @@ sub _coerce_sections {
 	return [ map { (__PACKAGE__.'::Section')->coerce($_) } @$spec ];
 }
 
-# used by subclasses for machine-specific defaults
-sub _apply_section_defaults {}
-sub _apply_segment_defaults {}
+# Overridden by subclasses for machine-specific defaults
+sub _apply_section_defaults {
+	my ($self, $sec)= @_;
+	# Undef type is "null" type 0
+	my $type= $sec->type_num;
+	defined $type
+		or $sec->type_num($type= 0);
+	my $offset= $sec->offset;
+	my $size= $sec->size;
+	
+	if ($type == 0) { # 'null'
+		# Ensure length and offset are zero
+		$size= $sec->size(0) unless defined $size;
+		$offset= $sec->offset(0) unless defined $offset;
+		croak "null section should have offset=0 and size=0"
+			if $offset || $size;
+	}
+	elsif ($type == 8) { # 'nobits'
+		# Offset can be set but ensure size is zero
+		$size= $sec->size(0) unless defined $size;
+		croak "nobits section should have size=0"
+			if $size;
+		
+	}
+	else {
+		# 'size' is required, but can be computed from 'data' and 'data_offset'.
+		if (!defined $size) {
+			defined $sec->data or croak "Section must define 'size' or 'data'"; 
+			$sec->size($sec->data_start + length($sec->data));
+		}
+	}
+}
+sub _apply_segment_defaults {
+	my ($self, $seg)= @_;
+	# Undef type is "null" type 0
+	my $type= $seg->type_num;
+	defined $type
+		or $seg->type_num($type= 0);
+	my $offset= $seg->offset;
+	my $filesize= $seg->filesize;
+	
+	if ($type == 0) { # 'null'
+		# Ensure length and offset are zero
+		$filesize= $seg->filesize(0) unless defined $filesize;
+		$offset= $seg->offset(0) unless defined $offset;
+		croak "null segment should have offset=0 and filesize=0"
+			if $offset || $filesize;
+	}
+	else {
+		# 'filesize' is required, but can be computed from 'data' and 'data_offset'
+		if (!defined $filesize) {
+			defined $seg->data or croak "Segment must define 'filesize' or 'data'";
+			$filesize= $seg->filesize($seg->data_start + length($seg->data));
+		}
+		# Default memsize to filesize
+		$seg->memsize($filesize) unless defined $seg->memsize;
+	}
+}
+
+sub _check_section_overlap {
+	my $self= shift;
+	my @segments= $self->section_list;
+	my %seg_to_idx= ( '' => 'start of file', map { $segments[$_] => $_ } 0..$#segments );
+	my $prev_end= 0;
+	my $prev= '';
+	for (sort { $a->offset <=> $b->offset } grep { defined $_->offset } @segments) {
+		$_->offset >= $prev_end
+			or croak "Segment ".$seg_to_idx{$_}." overlaps ".$seg_to_idx{$prev};
+		$prev= $_;
+		$prev_end= $_->offset + $_->size;
+	}
+}
 
 use ELF::Writer::Segment;
-
+use ELF::Writer::Section;
 
 1;

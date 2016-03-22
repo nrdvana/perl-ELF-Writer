@@ -55,6 +55,7 @@ has '+machine_num'  => ( default => sub { 0x3E } );
 sub _apply_segment_defaults {
 	my ($self, $seg)= @_;
 	$seg->align(4096) unless $seg->align;
+	$self->SUPER::_apply_segment_defaults($seg);
 }
 
 1;

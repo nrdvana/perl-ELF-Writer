@@ -60,19 +60,22 @@ sub test_return_42 {
 			offset      => 0, # overlap segment with elf header
 			virt_addr   => 0x10000,
 			data        => "\xbf\x2a\x00\x00\x00\xb8\x3c\x00\x00\x00\x0f\x05",
-			data_offset => undef
+			data_start  => undef # to be calculated below
 		}],
 	);
 	
 	my $prog_offset= $elf->elf_header_len + $elf->segment_header_elem_len;
-	$elf->segments->[0]->data_offset( $prog_offset );
+	$elf->segments->[0]->data_start( $prog_offset );
 	$elf->entry_point( $elf->segments->[0]->virt_addr + $prog_offset );
 	
 	# Write out an elf file
-	# TODO: validate the content of the file
-	my $elf= $elf->serialize();
+	$elf= $elf->serialize();
 	my $expected= _slurp("$FindBin::Bin/data/return_42_Linux_x86_64");
-	is( $elf, $expected, 'file contents match' );
+	is( $elf, $expected, 'file contents match' )
+		or do {
+			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $elf;
+			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $expected;
+		};
 }
 
 sub _slurp { open my $fh, '<:raw', shift or die; $/= undef; <$fh> }
