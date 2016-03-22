@@ -434,7 +434,13 @@ sub serialize {
 		$sections[0]->type_num == 0
 			or croak "Section 0 must be type NULL";
 		# Sections may not overlap, regardless of whether the user attached data to them
-		$self->_check_section_overlap;
+		my $prev_end= 0;
+		my $prev;
+		for (sort { $a->offset <=> $b->offset } $self->section_list) {
+			croak 'Section overlap between '.$_->_name.' and '.$prev->_name
+				if $_->offset < $prev_end;
+			$prev_end= $_->offset + $_->size;
+		}
 	}
 	
 	# Each segment and section can define data to be written to the file,
@@ -656,20 +662,6 @@ sub _apply_segment_defaults {
 		}
 		# Default memsize to filesize
 		$seg->memsize($filesize) unless defined $seg->memsize;
-	}
-}
-
-sub _check_section_overlap {
-	my $self= shift;
-	my @segments= $self->section_list;
-	my %seg_to_idx= ( '' => 'start of file', map { $segments[$_] => $_ } 0..$#segments );
-	my $prev_end= 0;
-	my $prev= '';
-	for (sort { $a->offset <=> $b->offset } grep { defined $_->offset } @segments) {
-		$_->offset >= $prev_end
-			or croak "Segment ".$seg_to_idx{$_}." overlaps ".$seg_to_idx{$prev};
-		$prev= $_;
-		$prev_end= $_->offset + $_->size;
 	}
 }
 
