@@ -8,6 +8,16 @@ our $VERSION; BEGIN { $VERSION= '0.001' }
 
 # ABSTRACT: Encode elf files with pure-perl
 
+=head1 MODULE STATUS
+
+I wrote this module while learning the ELF format.  This is not the work of an
+expert.  Yet, it could still be useful for people, so I decided to implement as
+much as I could and publish it.  Bug reports are very welcome.
+
+The API is not completely stable, but I will at least promise the numeric
+accessors for the header fields will remain as-is.  (type_num, machine_num,
+class_num, version, etc.)
+
 =head1 DESCRPTION
 
 This module lets you define the attributes, segments, and sections of an ELF
@@ -15,7 +25,7 @@ specification, and then serialize it to a file.  All data must reside in
 memory before writing, so this module is really just a very elaborate call to
 'pack'.  This module also assumes you know how an ELF file is structured,
 and the purpose of Segments and Sections.  Patches welcome for adding
-user-friendly features.
+user-friendly features and sanity checks.
 
 =head1 SYNOPSIS
 
@@ -24,8 +34,8 @@ user-friendly features.
     segments => [{
       offset      => 0, # overlap segment with elf header
       virt_addr   => 0x10000,
-      data        => $program,
-      data_offset => undef
+      data        => $my_machine_code,
+      data_start  => undef # calculated below
     }],
   );
   
@@ -33,7 +43,7 @@ user-friendly features.
   # http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
   
   my $prog_offset= $elf->elf_header_len + $elf->segment_header_elem_len;
-  $elf->segments->[0]->data_offset( $prog_offset );
+  $elf->segments->[0]->data_start( $prog_offset );
   $elf->entry_point( $elf->segments->[0]->virt_addr + $prog_offset );
   
   # Write out an elf file
