@@ -4,7 +4,7 @@ use Carp;
 use IO::File;
 use namespace::clean;
 
-our $VERSION; BEGIN { $VERSION= '0.001' }
+our $VERSION; BEGIN { $VERSION= '0.000_001' }
 
 # ABSTRACT: Encode elf files with pure-perl
 
@@ -600,11 +600,6 @@ sub _serialize_section_header {
 		$sec->name, $sec->type, $sec->flags, $sec->addr, $sec->offset,
 		$sec->size, $sec->link, $sec->info, $sec->align, $sec->entry_size
 	);
-}
-
-sub deserialize {
-	my $class= shift;
-	croak "Unimplemented";
 }
 
 sub _coerce_segments {
