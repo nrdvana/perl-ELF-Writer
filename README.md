@@ -7,6 +7,22 @@ toolchain.
 
 Implementing a compiler is left as an exercise for the reader.
 
+## THAT SOUNDS... UGLY
+
+Actually it's fairly painless, if your needs are simple.
+
+```
+  my $elf= ELF::Writer::Linux_x86_64->new(
+    type => 'executable',
+    segments => [{
+      virt_addr   => 0x10000,
+      data        => $my_machine_code,
+    }],
+    entry_point => 0x10000
+  );
+  $elf->write_file("my_executable");
+```
+
 ## BUT WHY, DAMMIT? WHY?
 
 If you have to ask why, you are not a member of the intended audience.
