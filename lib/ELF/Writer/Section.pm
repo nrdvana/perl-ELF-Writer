@@ -1,7 +1,10 @@
 package ELF::Writer::Section;
 use Moo 2;
 use Carp;
+use ELF::Writer;
 use namespace::clean;
+
+*VERSION= *ELF::Writer::VERSION;
 
 # ABSTRACT: Object representing the fields of one section in an ELF file.
 
@@ -15,11 +18,44 @@ Pointer to name of this section within the Strings table. (.shstrtab)
 
 TODO: auto-generate the string table if this is set to anything other than a number.
 
-=head2 type
+=head2 type, type_sym
 
 Type of this section.  A 32-bit number, or one of: 'null' (or undef), 'progbits',
 'symtab', 'strtab', 'rela', 'hash', 'dynamic', 'note', 'nobits', 'rel', 'shlib',
 'dynsym', 'num'.
+
+=cut
+
+has name        => ( is => 'rw' );
+
+our (%type_to_sym, %type_from_sym);
+ELF::Writer::_init_enum(\%type_to_sym, \%type_from_sym,
+	'null'     =>  0, # Ignore this section entry
+	'progbits' =>  1, # Contents of section are program specific
+	'symtab'   =>  2, # symbol table
+	'strtab'   =>  3, # string table
+	'rela'     =>  4, # relocation table with specific addends
+	'hash'     =>  5, # symbol hash table
+	'dynamic'  =>  6, # dynamic linking information
+	'note'     =>  7, # various identification of file
+	'nobits'   =>  8, # program-specific "pointer" using offset field.  has no length.
+	'rel'      =>  9, # relocation table without specific addends
+	'shlib'    => 10, # ??
+	'dynsym'   => 11, # symbol table
+	'num'      => 12, # ??
+);
+has type => ( is => 'rw', coerce => sub {
+	my $x= $type_from_sym{$_[0]};
+	defined $x? $x
+		: (int($_[0]) == $_[0])? $_[0]
+		: croak "$_[0] is not a valid 'type'"
+});
+sub type_sym {
+	my $self= shift;
+	$self->type($_[0]) if @_;
+	my $v= $self->type;
+	$type_to_sym{$v} || $v
+}
 
 =head2 flags
 
@@ -36,6 +72,28 @@ Read/write accesor for alloc bit of flags
 =head2 flag_execinstr
 
 Read/write accessor for execinstr bit of flags
+
+=cut
+
+has flags       => ( is => 'rw' );
+sub flag_write {
+	my ($self, $value)= @_;
+	$self->flags( $self->flags & ~1 | ($value? 1 : 0) )
+		if defined $value;
+	$self->flags & 1;
+}
+sub flag_alloc {
+	my ($self, $value)= @_;
+	$self->flags( $self->flags & ~2 | ($value? 2 : 0) )
+		if defined $value;
+	$self->flags & 2;
+}
+sub flag_execinstr {
+	my ($self, $value)= @_;
+	$self->flags( $self->flags & ~4 | ($value? 4 : 0) )
+		if defined $value;
+	$self->flags & 4;
+}
 
 =head2 addr
 
@@ -73,31 +131,6 @@ entry.  Set to 0 otherwise.
 
 =cut
 
-has name        => ( is => 'rw' );
-
-ELF::Writer::_enum_attribute(\&has, 'type',
-	\&ELF::Writer::SectionTypeEnum_encode, \&ELF::Writer::SectionTypeEnum_decode);
-
-has flags       => ( is => 'rw' );
-sub flag_write {
-	my ($self, $value)= @_;
-	$self->flags( $self->flags & ~1 | ($value? 1 : 0) )
-		if defined $value;
-	$self->flags & 1;
-}
-sub flag_alloc {
-	my ($self, $value)= @_;
-	$self->flags( $self->flags & ~2 | ($value? 2 : 0) )
-		if defined $value;
-	$self->flags & 2;
-}
-sub flag_execinstr {
-	my ($self, $value)= @_;
-	$self->flags( $self->flags & ~4 | ($value? 4 : 0) )
-		if defined $value;
-	$self->flags & 4;
-}
-
 has addr        => ( is => 'rw' );    
 has offset      => ( is => 'rw' );
 has size        => ( is => 'rw' );
@@ -117,6 +150,11 @@ The data bytes of this section
 Use this attribute to introduce padding between the start of the section and
 the offset where your 'data' should be written.  This is mainly of use for
 segments, but provided on sections for symmetry.
+
+=head2 data_offset
+
+Read-only sum of L</offset> and L</data_start>.  This is the file offset at
+which your data scalar (if provided) will be written to the file.
 
 =cut
 

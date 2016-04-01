@@ -14,41 +14,41 @@ sub test_enums {
 	
 	for (qw: executable shared relocatable core :) {
 		$elf= ELF::Writer->new(type => $_);
-		is( $elf->type, $_, "enum type=$_ decoded" );
-		is( $elf->type_num, $ELF::Writer::TypeEnum_r{$_}, "enum type=$_ correct value" );
+		is( $elf->type_sym, $_, "enum type=$_ decoded" );
+		is( $elf->type, $ELF::Writer::type_from_sym{$_}, "enum type=$_ correct value" );
 	}
 	$elf= ELF::Writer->new(type => 42);
-	is( $elf->type_num, 42, "enum type=42 allowed" );
-	is( $elf->type, 42, "enum type=42 decoded as self" );
+	is( $elf->type, 42, "enum type=42 allowed" );
+	is( $elf->type_sym, 42, "enum type=42 decoded as self" );
 	
 	for (qw: 32bit 64bit :) {
 		$elf= ELF::Writer->new(class => $_);
-		is( $elf->class, $_, "enum class=$_ decoded" );
-		is( $elf->class_num, $ELF::Writer::ClassEnum_r{$_}, "enum class=$_ correct value" );
+		is( $elf->class_sym, $_, "enum class=$_ decoded" );
+		is( $elf->class, $ELF::Writer::class_from_sym{$_}, "enum class=$_ correct value" );
 	}
 	
 	for (qw: 2LSB 2MSB :) {
 		$elf= ELF::Writer->new(data => $_);
-		is( $elf->data, $_, "enum data=$_ decoded" );
-		is( $elf->data_num, $ELF::Writer::DataEnum_r{$_}, "enum data=$_ correct value" );
+		is( $elf->data_sym, $_, "enum data=$_ decoded" );
+		is( $elf->data, $ELF::Writer::data_from_sym{$_}, "enum data=$_ correct value" );
 	}
 	
 	for (qw: Linux Solaris :) {
 		$elf= ELF::Writer->new(osabi => $_);
-		is( $elf->osabi, $_, "enum osabi=$_ decoded" );
-		is( $elf->osabi_num, $ELF::Writer::OsabiEnum_r{$_}, "enum osabi=$_ correct value" );
+		is( $elf->osabi_sym, $_, "enum osabi=$_ decoded" );
+		is( $elf->osabi, $ELF::Writer::osabi_from_sym{$_}, "enum osabi=$_ correct value" );
 	}
 	
 	for (qw: x86-64 :) {
 		$elf= ELF::Writer->new(machine => $_);
-		is( $elf->machine, $_, "enum machine=$_ decoded" );
-		is( $elf->machine_num, $ELF::Writer::MachineEnum_r{$_}, "enum machine=$_ correct value" );
+		is( $elf->machine_sym, $_, "enum machine=$_ decoded" );
+		is( $elf->machine, $ELF::Writer::machine_from_sym{$_}, "enum machine=$_ correct value" );
 	}
 	
 	for (qw: note :) {
 		my $seg= ELF::Writer::Segment->new(type => $_);
-		is( $seg->type, $_, "enum segment.type=$_ decoded" );
-		is( $seg->type_num, $ELF::Writer::SegmentTypeEnum_r{$_}, "enum segment.type=$_ correct value" );
+		is( $seg->type_sym, $_, "enum segment.type=$_ decoded" );
+		is( $seg->type, $ELF::Writer::Segment::type_from_sym{$_}, "enum segment.type=$_ correct value" );
 	}
 };
 

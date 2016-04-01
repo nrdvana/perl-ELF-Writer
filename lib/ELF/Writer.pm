@@ -4,23 +4,19 @@ use Carp;
 use IO::File;
 use namespace::clean;
 
-our $VERSION; BEGIN { $VERSION= '0.000_001' }
+our $VERSION; BEGIN { $VERSION= '0.000_002' }
 
 # ABSTRACT: Encode elf files with pure-perl
 
 =head1 MODULE STATUS
 
-I wrote this module while learning the ELF format.  This is not the work of an
-expert.  Yet, it could still be useful for people, so I decided to implement as
-much as I could and publish it.  Bug reports are very welcome.
-
-The API is not completely stable, but I will at least promise the numeric
-accessors for the header fields will remain as-is.  (type_num, machine_num,
-class_num, version, etc.)
+I wrote this module while learning the ELF format, so this is not the work of an
+expert.  But, since there wasn't anything on CPAN yet, I decided to implement as
+complete an API as I could and release it.  Bug reports are very welcome.
 
 =head1 DESCRPTION
 
-This module lets you define the attributes, segments, and sections of an ELF
+This module lets you define the attributes, segments, and sections of the ELF
 specification, and then serialize it to a file.  All data must reside in
 memory before writing, so this module is really just a very elaborate call to
 'pack'.  This module also assumes you know how an ELF file is structured,
@@ -51,189 +47,199 @@ user-friendly features and sanity checks.
 
 =cut
 
-our (
-	%ClassEnum, %ClassEnum_r,
-	%DataEnum, %DataEnum_r,
-	%OsabiEnum, %OsabiEnum_r,
-	%TypeEnum, %TypeEnum_r,
-	%MachineEnum, %MachineEnum_r,
-	%SegmentTypeEnum, %SegmentTypeEnum_r,
-	%SectionTypeEnum, %SectionTypeEnum_r,
-);
-
-sub _create_enum {
-	my ($field_name, $enum_name, @mapping)= @_;
-	no strict 'refs';
-	%{__PACKAGE__.'::'.$enum_name}= @mapping;
-	%{__PACKAGE__.'::'.$enum_name.'_r'}= reverse @mapping;
-	eval 'sub '.$enum_name.'_encode {
-		my $x= $'.$enum_name.'_r{$_[0]};
-		defined $x or $x= $_[0];
-		$x =~ /^[0-9]+$/ or croak "Invalid '.$field_name.': $_[0]";
-		$x
-	}
-	sub '.$enum_name.'_decode {
-		$'.$enum_name.'{$_[0]} || $_[0]
-	}
-	1' || die $@;
+sub _init_enum {
+	my ($to_sym, $from_sym, @name_to_num)= @_;
+	%$from_sym= @name_to_num;
+	%$to_sym= reverse @name_to_num;
 }
-
-our $Magic; BEGIN { $Magic= "\x7fELF"; }
-
-BEGIN {
-_create_enum( 'class', 'ClassEnum',
-	1 => '32bit',
-	2 => '64bit'
-);
-
-_create_enum( 'data', 'DataEnum',
-	1 => '2LSB',
-	2 => '2MSB'
-);
-
-_create_enum( 'osabi', 'OsabiEnum',
-	0 => 'System V', 1 => 'HP-UX', 2 => 'NetBSD', 3 => 'Linux', 6 => 'Solaris',
-	7 => 'AIX', 8 => 'IRIX', 9 => 'FreeBSD', 0x0C => 'OpenBSD', 0x0D => 'OpenVMS'
-);
-
-_create_enum( 'type', 'TypeEnum',
-	0 => 'none',
-	1 => 'relocatable',
-	2 => 'executable',
-	3 => 'shared',
-	4 => 'core'
-);
-
-_create_enum( 'machine', 'MachineEnum',
-	0x02 => 'SPARC', 0x03 => 'i386', 0x04 => 'Motorola68K', 0x05 => 'Motorola88K',
-	0x07 => 'i860', 0x08 => 'MIPS-RS3000', 0xA0 => 'MIPS-RS4000',
-	0x14 => 'PowerPC',
-	0x28 => 'ARM', 0x2A => 'SuperH', 0x32 => 'IA-64', 0x3E => 'x86-64',
-	0xB7 => 'AArch64'
-);
-
-_create_enum( 'segment type', 'SegmentTypeEnum',
-	0 => 'null',    # Ignored entry in program header table
-	1 => 'load',    # Load segment into program address space
-	2 => 'dynamic', # Dynamic linking information
-	3 => 'interp',  # Specifies location of string defining path to interpreter
-	4 => 'note',    # Specifies location of auxillary information
-	5 => 'shlib',   # ??
-	6 => 'phdr',    # Specifies location of the program header loaded into process image
-);
-
-_create_enum( 'section type', 'SectionTypeEnum',
-	0 => 'null',     # Ignore this section entry
-	1 => 'progbits', # Contents of section are program specific
-	2 => 'symtab',   # symbol table
-	3 => 'strtab',   # string table
-	4 => 'rela',     # relocation table with specific addends
-	5 => 'hash',     # symbol hash table
-	6 => 'dynamic',  # dynamic linking information
-	7 => 'note',     # various identification of file
-	8 => 'nobits',   # program-specific "pointer" using offset field.  has no length.
-	9 => 'rel',      # relocation table without specific addends
-	10 => 'shlib',   # ??
-	11 => 'dynsym',  # symbol table
-	12 => 'num',     # ??
-);
-
-} # BEGIN
 
 =head1 ATTRIBUTES
 
-=over
+B<Note on enumerated values>: The ELF format has enumerations for many of its
+fields which are left open-ended to be extended in the future.  Also, the symbolic
+names seem to differ between various sources, so it was difficult to determine
+what the official names should be.  My solution was to store the attribute as the
+numeric value, but auto-convert symbolic names, and allow access to the symbolic
+name by a second attribute accessor with suffix "_sym".
 
-=item class
+=head2 class, class_sym
 
 8-bit integer, or one of: '32bit' or '64bit'.  Must be set before writing.
 
-=item data
+=cut
+
+our (%class_to_sym, %class_from_sym);
+_init_enum(\%class_to_sym, \%class_from_sym,
+	'32bit' => 1,
+	'64bit' => 2,
+);
+has class => ( is => 'rw', coerce => sub {
+	my $x= $class_from_sym{$_[0]};
+	defined $x? $x
+		: (int($_[0]) == $_[0])? $_[0]
+		: croak "$_[0] is not a valid 'class'"
+});
+sub class_sym {
+	my $self= shift;
+	$self->class($_[0]) if @_;
+	my $v= $self->class;
+	$class_to_sym{$v} || $v
+}
+
+=head2 data, data_sym
 
 8-bit integer, or one of: '2LSB' or '2MSB'. (2's complement least/most
 significant byte first)  i.e. little-endian or big-endian
 
 Must be set before writing.
 
-=item header_version
+=cut
+
+our (%data_to_sym, %data_from_sym);
+_init_enum(\%data_to_sym, \%data_from_sym,
+	'2LSB' => 1,
+	'2MSB' => 2,
+);
+has data => ( is => 'rw', coerce => sub {
+	my $x= $data_from_sym{$_[0]};
+	defined $x? $x
+		: (int($_[0]) == $_[0])? $_[0]
+		: croak "$_[0] is not a valid 'data'"
+});
+sub data_sym {
+	my $self= shift;
+	$self->data($_[0]) if @_;
+	my $v= $self->data;
+	$data_to_sym{$v} || $v
+}
+
+=head2 header_version
 
 8-bit integer; defaults to '1' for original version of ELF.
 
-=item osabi
+=cut
 
-8-bit integer, or one of: 'System V', 'HP-UX', 'NetBSD', 'Linux', 'Solaris',
+has header_version  => ( is => 'rw', default => sub { 1 } );
+
+=head2 osabi, osabi_sym
+
+8-bit integer, or one of: 'SystemV', 'HP-UX', 'NetBSD', 'Linux', 'Solaris',
 'AIX', 'IRIX', 'FreeBSD', 'OpenBSD', 'OpenVMS'.  Must be set before writing.
 
-=item osabi_version
+=cut
+
+our (%osabi_to_sym, %osabi_from_sym);
+_init_enum(\%osabi_to_sym, \%osabi_from_sym,
+	'SystemV'  => 0,
+	'HP-UX'    => 1,
+	'NetBSD'   => 2,
+	'Linux'    => 3,
+	'Solaris'  => 6,
+	'AIX'      => 7,
+	'IRIX'     => 8,
+	'FreeBSD'  => 9,
+	'OpenBSD'  => 0x0C,
+	'OpenVMS'  => 0x0D,
+);
+
+has osabi => ( is => 'rw', coerce => sub {
+	my $x= $osabi_from_sym{$_[0]};
+	defined $x? $x
+		: (int($_[0]) == $_[0])? $_[0]
+		: croak "$_[0] is not a valid 'osabi'"
+});
+sub osabi_sym {
+	my $self= shift;
+	$self->osabi($_[0]) if @_;
+	my $v= $self->osabi;
+	$osabi_to_sym{$v} || $v
+}
+
+=head2 osabi_version
 
 Depends on osabi.  Not used for Linux.  Defaults to 0.
 
-=item type
+=head2 type, type_sym
 
 16-bit integer, or one of: 'relocatable', 'executable', 'shared', 'core'.
 Must be set before writing.
 
-=item machine
+=cut
+
+has osabi_version   => ( is => 'rw', default => sub { 0 } );
+
+our (%type_to_sym, %type_from_sym);
+_init_enum(\%type_to_sym, \%type_from_sym,
+	'none'        => 0,
+	'relocatable' => 1,
+	'executable'  => 2,
+	'shared'      => 3,
+	'core'        => 4,
+);
+has type => ( is => 'rw', coerce => sub {
+	my $x= $type_from_sym{$_[0]};
+	defined $x? $x
+		: (int($_[0]) == $_[0])? $_[0]
+		: croak "$_[0] is not a valid 'type'"
+});
+sub type_sym {
+	my $self= shift;
+	$self->type($_[0]) if @_;
+	my $v= $self->type;
+	$type_to_sym{$v} || $v
+}
+
+=head2 machine, machine_sym
 
 16-bit integer, or one of: 'Sparc', 'x86', 'MIPS', 'PowerPC', 'ARM', 'SuperH',
 'IA-64', 'x86-64', 'AArch64'.
 
-=item version
+=cut
+
+our (%machine_to_sym, %machine_from_sym);
+_init_enum(\%machine_to_sym, \%machine_from_sym,
+	'SPARC'       => 0x02,
+	'i386'        => 0x03,
+	'Motorola68K' => 0x04,
+	'Motorola88K' => 0x05,
+	'i860'        => 0x07,
+	'MIPS-RS3000' => 0x08,
+	'MIPS-RS4000' => 0xA0,
+	'PowerPC'     => 0x14,
+	'ARM'         => 0x28,
+	'SuperH'      => 0x2A,
+	'IA-64'       => 0x32,
+	'x86-64'      => 0x3E,
+	'AArch64'     => 0xB7,
+);
+has machine => ( is => 'rw', coerce => sub {
+	my $x= $machine_from_sym{$_[0]};
+	defined $x? $x
+		: (int($_[0]) == $_[0])? $_[0]
+		: croak "$_[0] is not a valid 'machine'"
+});
+sub machine_sym {
+	my $self= shift;
+	$self->machine($_[0]) if @_;
+	my $v= $self->machine;
+	$machine_to_sym{$v} || $v
+}
+
+=head2 version
 
 32-bit integer; defaults to '1' for original version of ELF.
 
-=item entry_point
+=head2 entry_point
 
 32-bit or 64-bit pointer to address where process starts executing.
 Defaults to 0 unless type is 'executable', then you must specify it before
 writing.
 
-=item flags
+=head2 flags
 
 32 bit flags, defined per-machine.
 
 =cut
-
-sub _enum_attribute {
-	my ($has, $attr, $encoder, $decoder)= @_;
-	my $caller= caller;
-	# Define the Moo accessor for the numeric storage of the enum
-	$has->($attr.'_num' => (
-		is => 'rw',
-		init_arg => $attr,
-		coerce => $encoder
-	));
-	
-	# Define a friendly accessor for the translated value of the enum
-	eval 'sub '.$caller.'::'.$attr.' {
-		if (@_ > 1) {
-			my $val= $_[1];
-			if (defined $val) {
-				$val= $encoder->($val);
-				Carp::croak("$_[1] is not a valid '.$attr.'")
-					unless $val =~ /^[0-9]+$/;
-			}
-			$_[0]->'.$attr.'_num($val);
-		}
-		my $x= $_[0]->'.$attr.'_num;
-		defined $x? $decoder->($x) : undef;
-	}
-	1' || die $@;
-}
-
-_enum_attribute(\&has, class => \&ClassEnum_encode, \&ClassEnum_decode);
-
-_enum_attribute(\&has, data => \&DataEnum_encode, \&DataEnum_decode);
-
-has header_version  => ( is => 'rw', default => sub { 1 } );
-
-_enum_attribute(\&has, osabi => \&OsabiEnum_encode, \&OsabiEnum_decode);
-
-has osabi_version   => ( is => 'rw', default => sub { 0 } );
-
-_enum_attribute(\&has, type => \&TypeEnum_encode, \&TypeEnum_decode);
-
-_enum_attribute(\&has, machine => \&MachineEnum_encode, \&MachineEnum_decode);
 
 has version         => ( is => 'rw', default => sub { 1 } );
 
@@ -241,24 +247,26 @@ has flags           => ( is => 'rw', default => sub { 0 } );
 
 has entry_point     => ( is => 'rw' );
 
-=item elf_header_len
+=head2 elf_header_len
 
-Determined from L</class>.  (52 or 64 bytes)
+Read-only, determined from L</class>.  (52 or 64 bytes)
 
-=item segment_header_elem_len
+=head2 segment_header_elem_len
 
-Determined from L</class>.  (32 or 56 bytes)
+Read-only, determined from L</class>.  (32 or 56 bytes)
 
-=item section_header_elem_len
+=head2 section_header_elem_len
 
-Determined from L</class>.  (40 or 64 bytes)
+Read-only, determined from L</class>.  (40 or 64 bytes)
 
 =cut
 
+our $Magic= "\x7fELF";
+
 sub elf_header_len {
 	my $class= shift->class;
-	return $class eq '32bit'? 52
-		: $class eq '64bit'? 64
+	return $class == 1? 52
+		: $class == 2? 64
 		: croak "Don't know structs for elf class $class";
 }
 our @Elf_Header_Pack= (
@@ -275,8 +283,8 @@ sub _elf_header_packstr {
 
 sub segment_header_elem_len {
 	my $class= shift->class;
-	return $class eq '32bit'? 32
-		: $class eq '64bit'? 56
+	return $class == 1? 32
+		: $class == 2? 56
 		: croak "Don't know structs for elf class $class";
 }
 # Note! there is also a field swap between 32bit and 64bit
@@ -294,8 +302,8 @@ sub _segment_header_packstr {
 
 sub section_header_elem_len {
 	my $class= shift->class;
-	return $class eq '32bit'? 40
-		: $class eq '64bit'? 64
+	return $class == 1? 40
+		: $class == 2? 64
 		: croak "Don't know structs for elf class $class";
 }
 our @Section_Header_Pack= (
@@ -313,59 +321,57 @@ sub _section_header_packstr {
 # Returns a number 0..3 used by the various routines when packing binary data
 sub _encoding {
 	my $self= shift;
-	my $endian= $self->data_num;
-	my $bits=   $self->class_num;
+	my $endian= $self->data;
+	my $bits=   $self->class;
 	defined $endian && $endian > 0 && $endian < 3 or croak "Can't encode for data=$endian";
 	defined $bits && $bits > 0 && $bits < 3 or croak "Can't encode for class=$bits";
 	return ($bits-1)*2 + ($endian-1);
 }
 
-=item segments
+=head2 segments
 
 Arrayref of L<ELF::Writer::Segment> objects.  You can also pass hashrefs to
 the constructor which will be coerced automatically.
 
-=item segment_count
+=head2 segment_count
 
 Handy alias for $#{ $elf->segments }
 
-=item segment_list
+=head2 segment_list
 
 Handy alias for @{ $elf->segments }
 
 =cut
 
-has segments     => ( is => 'rw', coerce => \&_coerce_segments, default => sub { [] } );
+has segments => ( is => 'rw', coerce => \&_coerce_segments, default => sub { [] } );
 sub segment_count { scalar @{ shift->segments } }
 sub segment_list { @{ shift->segments } }
 
-=item sections
+=head2 sections
 
 Arrayref of L<ELF::Writer::Section> objects.  You can also pass hashrefs to
 the constructor which will be coerced automatically.
 
-=item section_count
+=head2 section_count
 
 Handy alias for $#{ $elf->sections }
 
-=item section_list
+=head2 section_list
 
 Handy alias for @{ $elf->sections }
 
-=item section_name_string_table_index
+=head2 section_name_string_table_index
 
 Insex into the section array of a string-table section where the names of
 the sections are stored.
 
 =cut
 
-has sections     => ( is => 'rw', coerce => \&_coerce_sections, default => sub { [] } );
+has sections => ( is => 'rw', coerce => \&_coerce_sections, default => sub { [] } );
 sub section_count { scalar @{ shift->sections } }
 sub section_list { @{ shift->sections } }
 
 has section_name_string_table_idx => ( is => 'rw' );
-
-=back
 
 =head1 METHODS
 
@@ -383,10 +389,8 @@ sub serialize {
 	use warnings FATAL => 'pack';
 	
 	# Make sure all required attributes are defined
-	defined($self->can("${_}_num")->($self)) || croak "Attribute $_ is not defined"
-		for qw( class data osabi type machine );
 	defined($self->$_) || croak "Attribute $_ is not defined"
-		for qw( header_version osabi_version version entry_point );
+		for qw( class data osabi type machine header_version osabi_version version entry_point );
 	
 	# Clone the segments and sections so that our changes don't affect the
 	# configuration the user built.
@@ -405,7 +409,7 @@ sub serialize {
 		# into the program's address space.  If used, we track the pointer
 		# to that segment.  We also clear it's 'data' and set it's 'size'
 		# to keep from confusing the code below.
-		if ($_->type_num == 6) {
+		if ($_->type == 6) {
 			croak "There can be only one segment of type 'phdr'"
 				if defined $segment_table;
 			$segment_table= $_;
@@ -441,7 +445,7 @@ sub serialize {
 	if (@sections) {
 		# First section must always be the NULL section.  If the user forgot this
 		# then their indicies might be off.
-		$sections[0]->type_num == 0
+		$sections[0]->type == 0
 			or croak "Section 0 must be type NULL";
 		# Sections may not overlap, regardless of whether the user attached data to them
 		my $prev_end= 0;
@@ -527,9 +531,9 @@ sub serialize {
 	
 	# Now, we can finally encode the ELF header.
 	my $header= pack($self->_elf_header_packstr,
-		$Magic, $self->class_num, $self->data_num, $self->header_version,
-		$self->osabi_num, $self->osabi_version, '',
-		$self->type_num, $self->machine_num, $self->version, $self->entry_point,
+		$Magic, $self->class, $self->data, $self->header_version,
+		$self->osabi, $self->osabi_version, '',
+		$self->type, $self->machine, $self->version, $self->entry_point,
 		($segment_table? $segment_table->offset : 0),
 		($section_table? $section_table->offset : 0),
 		$self->flags, $self->elf_header_len,
@@ -558,10 +562,8 @@ sub _serialize_segment_header {
 	use warnings FATAL => 'pack';
 	
 	# Make sure all required attributes are defined
-	(defined $seg->can("${_}_num")->($self)) || croak "Attribute $_ is not defined"
-		for qw( type );
 	defined $seg->$_ or croak "Attribute $_ is not defined"
-		for qw( offset virt_addr align );
+		for qw( type offset virt_addr align );
 	
 	my $filesize= $seg->filesize;
 	$filesize= length($seg->data) + $seg->data_offset
@@ -575,11 +577,11 @@ sub _serialize_segment_header {
 	# 'flags' moves depending on 32 vs 64 bit, so changing the pack string isn't enough
 	return $self->_encoding < 2?
 		pack($self->_segment_header_packstr,
-			$seg->type_num, $seg->offset, $seg->virt_addr, $seg->phys_addr // 0,
+			$seg->type, $seg->offset, $seg->virt_addr, $seg->phys_addr // 0,
 			$filesize, $memsize, $seg->flags, $seg->align
 		)
 		: pack($self->_segment_header_packstr,
-			$seg->type_num, $seg->flags, $seg->offset, $seg->virt_addr,
+			$seg->type, $seg->flags, $seg->offset, $seg->virt_addr,
 			$seg->phys_addr // 0, $filesize, $memsize, $seg->align
 		);
 }
@@ -588,10 +590,8 @@ sub _serialize_section_header {
 	my ($self, $sec)= @_;
 	
 	# Make sure all required attributes are defined
-	(defined $sec->can("${_}_num")->($self)) || croak "Attribute $_ is not defined"
-		for qw( type );
 	defined $sec->$_ or croak "Attribute $_ is not defined"
-		for qw( name flags addr offset size link info addralign entsize );
+		for qw( type name flags addr offset size link info addralign entsize );
 	
 	# Faster than checking bit lengths on every field ourself
 	use warnings FATAL => 'pack';
@@ -600,6 +600,25 @@ sub _serialize_section_header {
 		$sec->name, $sec->type, $sec->flags, $sec->addr, $sec->offset,
 		$sec->size, $sec->link, $sec->info, $sec->align, $sec->entry_size
 	);
+}
+
+=head2 write_file
+
+  $elf->write_file( $filename [, $mode]);
+
+Convenience method for writing to a file.  Writes with mode 0555 by default.
+
+=cut
+
+sub write_file {
+	my ($self, $filename, $mode)= @_;
+	$mode= 0555 unless defined $mode;
+	require File::Temp;
+	my ($fh, $tmpname)= File::Temp::tempfile( $filename.'-XXXXXX' );
+	print $fh $self->serialize or croak "write: $!";
+	close $fh or croak "close: $!";
+	chmod($mode, $tmpname) or croak "chmod: $!";
+	rename($tmpname, $filename) or croak "rename: $!";
 }
 
 sub _coerce_segments {
@@ -615,9 +634,9 @@ sub _coerce_sections {
 sub _apply_section_defaults {
 	my ($self, $sec)= @_;
 	# Undef type is "null" type 0
-	my $type= $sec->type_num;
+	my $type= $sec->type;
 	defined $type
-		or $sec->type_num($type= 0);
+		or $sec->type($type= 0);
 	my $offset= $sec->offset;
 	my $size= $sec->size;
 	
@@ -646,9 +665,9 @@ sub _apply_section_defaults {
 sub _apply_segment_defaults {
 	my ($self, $seg)= @_;
 	# Undef type is "null" type 0
-	my $type= $seg->type_num;
+	my $type= $seg->type;
 	defined $type
-		or $seg->type_num($type= 0);
+		or $seg->type($type= 0);
 	my $offset= $seg->offset;
 	my $filesize= $seg->filesize;
 	

@@ -35,10 +35,10 @@ when constructed:
 
 =cut
 
-has '+class_num'    => ( default => sub { 2 } );
-has '+data_num'     => ( default => sub { 1 } );
-has '+osabi_num'    => ( default => sub { 3 } );
-has '+machine_num'  => ( default => sub { 0x3E } );
+has '+class'    => ( default => sub { 2 } );
+has '+data'     => ( default => sub { 1 } );
+has '+osabi'    => ( default => sub { 3 } );
+has '+machine'  => ( default => sub { 0x3E } );
 
 =head2 Segment attributes
 
