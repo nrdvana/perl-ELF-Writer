@@ -1,7 +1,6 @@
 package ELF::Writer::Linux_x86_64;
 use Moo 2;
 use namespace::clean;
-
 extends 'ELF::Writer';
 
 # ABSTRACT: ELF::Writer with defaults for Linux on x86_64

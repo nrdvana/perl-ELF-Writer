@@ -4,7 +4,7 @@ use Carp;
 use IO::File;
 use namespace::clean;
 
-our $VERSION; BEGIN { $VERSION= '0.000_002' }
+our $VERSION= '0.000_003';
 
 # ABSTRACT: Encode elf files with pure-perl
 
@@ -28,22 +28,23 @@ user-friendly features and sanity checks.
   my $elf= ELF::Writer::Linux_x86_64->new(
     type => 'executable',
     segments => [{
-      offset      => 0, # overlap segment with elf header
       virt_addr   => 0x10000,
       data        => $my_machine_code,
-      data_start  => undef # calculated below
     }],
+    entry_point => 0x10000,
   );
+  $elf->write_file($binary_name);
   
-  # Overlap the first segment with the elf header, for size efficiency
+  # Example above wastes almost 4K to align the first segment.
+  # We can overlap the first segment with the elf header, using this trick:
   # http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
+  # Note that this moves our machine code, which can affect RIP-relative
+  # addressing.
   
   my $prog_offset= $elf->elf_header_len + $elf->segment_header_elem_len;
+  $elf->segments->[0]->offset(0);
   $elf->segments->[0]->data_start( $prog_offset );
   $elf->entry_point( $elf->segments->[0]->virt_addr + $prog_offset );
-  
-  # Write out an elf file
-  $elf->write_file($binary_name);
 
 =cut
 
@@ -606,13 +607,13 @@ sub _serialize_section_header {
 
   $elf->write_file( $filename [, $mode]);
 
-Convenience method for writing to a file.  Writes with mode 0555 by default.
+Convenience method for writing to a file.  Writes with mode 0755 by default.
 
 =cut
 
 sub write_file {
 	my ($self, $filename, $mode)= @_;
-	$mode= 0555 unless defined $mode;
+	$mode= 0755 unless defined $mode;
 	require File::Temp;
 	my ($fh, $tmpname)= File::Temp::tempfile( $filename.'-XXXXXX' );
 	print $fh $self->serialize or croak "write: $!";
