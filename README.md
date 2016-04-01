@@ -25,7 +25,7 @@ Actually it's fairly painless, if your needs are simple.
 
 ## WHOSE FAULT IS THIS?
 
-I, Michael Conrad, take full responsibility for this blatant abuse of technology.
+I, Michael Conrad, accept full responsibility for this blatant abuse of technology.
 
 ## BUT WHY, DAMMIT? WHY?
 
