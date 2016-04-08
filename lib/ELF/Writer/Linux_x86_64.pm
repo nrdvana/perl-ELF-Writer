@@ -16,19 +16,19 @@ when constructed:
 
 =item class
 
-'64-bit'
+C<"64-bit">
 
 =item data
 
-'little-endian'
+C<"little-endian">
 
 =item osabi
 
-'Linux'
+C<"Linux">
 
 =item machine
 
-'x86-64'
+C<"x86-64">
 
 =back
 

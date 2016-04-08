@@ -65,7 +65,7 @@ name by a second attribute accessor with suffix "_sym".
 
 =head2 class, class_sym
 
-8-bit integer, or one of: '32bit' or '64bit'.  Must be set before writing.
+8-bit integer, or one of: C<"32bit"> or C<"64bit">.  Must be set before writing.
 
 =cut
 
@@ -74,12 +74,14 @@ _init_enum(\%class_to_sym, \%class_from_sym,
 	'32bit' => 1,
 	'64bit' => 2,
 );
+
 has class => ( is => 'rw', coerce => sub {
 	my $x= $class_from_sym{$_[0]};
 	defined $x? $x
 		: (int($_[0]) == $_[0])? $_[0]
 		: croak "$_[0] is not a valid 'class'"
 });
+
 sub class_sym {
 	my $self= shift;
 	$self->class($_[0]) if @_;
@@ -89,7 +91,7 @@ sub class_sym {
 
 =head2 data, data_sym
 
-8-bit integer, or one of: '2LSB' or '2MSB'. (2's complement least/most
+8-bit integer, or one of: C<"2LSB"> or C<"2MSB">. (2's complement least/most
 significant byte first)  i.e. little-endian or big-endian
 
 Must be set before writing.
@@ -101,12 +103,14 @@ _init_enum(\%data_to_sym, \%data_from_sym,
 	'2LSB' => 1,
 	'2MSB' => 2,
 );
+
 has data => ( is => 'rw', coerce => sub {
 	my $x= $data_from_sym{$_[0]};
 	defined $x? $x
 		: (int($_[0]) == $_[0])? $_[0]
 		: croak "$_[0] is not a valid 'data'"
 });
+
 sub data_sym {
 	my $self= shift;
 	$self->data($_[0]) if @_;
@@ -124,8 +128,8 @@ has header_version  => ( is => 'rw', default => sub { 1 } );
 
 =head2 osabi, osabi_sym
 
-8-bit integer, or one of: 'SystemV', 'HP-UX', 'NetBSD', 'Linux', 'Solaris',
-'AIX', 'IRIX', 'FreeBSD', 'OpenBSD', 'OpenVMS'.  Must be set before writing.
+8-bit integer, or one of: C<"SystemV">, C<"HP-UX">, C<"NetBSD">, C<"Linux">, C<"Solaris",
+C<"AIX">, C<"IRIX">, C<"FreeBSD">, C<"OpenBSD">, C<"OpenVMS">.  Must be set before writing.
 
 =cut
 
@@ -149,6 +153,7 @@ has osabi => ( is => 'rw', coerce => sub {
 		: (int($_[0]) == $_[0])? $_[0]
 		: croak "$_[0] is not a valid 'osabi'"
 });
+
 sub osabi_sym {
 	my $self= shift;
 	$self->osabi($_[0]) if @_;
@@ -162,7 +167,7 @@ Depends on osabi.  Not used for Linux.  Defaults to 0.
 
 =head2 type, type_sym
 
-16-bit integer, or one of: 'relocatable', 'executable', 'shared', 'core'.
+16-bit integer, or one of: C<"relocatable">, C<"executable">, C<"shared">, C<"core">.
 Must be set before writing.
 
 =cut
@@ -177,12 +182,14 @@ _init_enum(\%type_to_sym, \%type_from_sym,
 	'shared'      => 3,
 	'core'        => 4,
 );
+
 has type => ( is => 'rw', coerce => sub {
 	my $x= $type_from_sym{$_[0]};
 	defined $x? $x
 		: (int($_[0]) == $_[0])? $_[0]
 		: croak "$_[0] is not a valid 'type'"
 });
+
 sub type_sym {
 	my $self= shift;
 	$self->type($_[0]) if @_;
@@ -192,8 +199,8 @@ sub type_sym {
 
 =head2 machine, machine_sym
 
-16-bit integer, or one of: 'Sparc', 'x86', 'MIPS', 'PowerPC', 'ARM', 'SuperH',
-'IA-64', 'x86-64', 'AArch64'.
+16-bit integer, or one of: C<"Sparc">, C<"x86">, C<"MIPS">, C<"PowerPC">, C<"ARM">, C<"SuperH">,
+C<"IA-64">, C<"x86-64">, C<"AArch64">.
 
 =cut
 
@@ -213,12 +220,14 @@ _init_enum(\%machine_to_sym, \%machine_from_sym,
 	'x86-64'      => 0x3E,
 	'AArch64'     => 0xB7,
 );
+
 has machine => ( is => 'rw', coerce => sub {
 	my $x= $machine_from_sym{$_[0]};
 	defined $x? $x
 		: (int($_[0]) == $_[0])? $_[0]
 		: croak "$_[0] is not a valid 'machine'"
 });
+
 sub machine_sym {
 	my $self= shift;
 	$self->machine($_[0]) if @_;
@@ -228,12 +237,12 @@ sub machine_sym {
 
 =head2 version
 
-32-bit integer; defaults to '1' for original version of ELF.
+32-bit integer; defaults to C<1> for original version of ELF.
 
 =head2 entry_point
 
 32-bit or 64-bit pointer to address where process starts executing.
-Defaults to 0 unless type is 'executable', then you must specify it before
+Defaults to C<0> unless type is C<"executable">, then you must specify it before
 writing.
 
 =head2 flags
@@ -336,11 +345,11 @@ the constructor which will be coerced automatically.
 
 =head2 segment_count
 
-Handy alias for $#{ $elf->segments }
+Handy alias for C<$#{ $elf->segments }>
 
 =head2 segment_list
 
-Handy alias for @{ $elf->segments }
+Handy alias for C<@{ $elf->segments }>
 
 =cut
 
@@ -355,11 +364,11 @@ the constructor which will be coerced automatically.
 
 =head2 section_count
 
-Handy alias for $#{ $elf->sections }
+Handy alias for C<$#{ $elf->sections }>
 
 =head2 section_list
 
-Handy alias for @{ $elf->sections }
+Handy alias for C<@{ $elf->sections }>
 
 =head2 section_name_string_table_index
 
@@ -622,10 +631,13 @@ sub write_file {
 	rename($tmpname, $filename) or croak "rename: $!";
 }
 
+# coerce arrayref of hashrefs into arrayref of objects
 sub _coerce_segments {
 	my $spec= shift;
 	return [ map { (__PACKAGE__.'::Segment')->coerce($_) } @$spec ];
 }
+
+# coerce arrayref of hashrefs into arrayref of objects
 sub _coerce_sections {
 	my $spec= shift;
 	return [ map { (__PACKAGE__.'::Section')->coerce($_) } @$spec ];
@@ -663,6 +675,8 @@ sub _apply_section_defaults {
 		}
 	}
 }
+
+# Overridden by subclasses for machine-specific defaults
 sub _apply_segment_defaults {
 	my ($self, $seg)= @_;
 	# Undef type is "null" type 0
@@ -690,7 +704,8 @@ sub _apply_segment_defaults {
 	}
 }
 
-use ELF::Writer::Segment;
-use ELF::Writer::Section;
+# Load last so make sure data is initialized
+require ELF::Writer::Segment;
+require ELF::Writer::Section;
 
 1;

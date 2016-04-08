@@ -20,9 +20,9 @@ TODO: auto-generate the string table if this is set to anything other than a num
 
 =head2 type, type_sym
 
-Type of this section.  A 32-bit number, or one of: 'null' (or undef), 'progbits',
-'symtab', 'strtab', 'rela', 'hash', 'dynamic', 'note', 'nobits', 'rel', 'shlib',
-'dynsym', 'num'.
+Type of this section.  A 32-bit number, or one of: C<"null"> (or C<undef>), C<"progbits">,
+C<"symtab">, C<"strtab">, C<"rela">, C<"hash">, C<"dynamic">, C<"note">, C<"nobits">, C<"rel">,
+C<"shlib">, C<"dynsym">, C<"num">.
 
 =cut
 
@@ -44,12 +44,14 @@ ELF::Writer::_init_enum(\%type_to_sym, \%type_from_sym,
 	'dynsym'   => 11, # symbol table
 	'num'      => 12, # ??
 );
+
 has type => ( is => 'rw', coerce => sub {
 	my $x= $type_from_sym{$_[0]};
 	defined $x? $x
 		: (int($_[0]) == $_[0])? $_[0]
 		: croak "$_[0] is not a valid 'type'"
 });
+
 sub type_sym {
 	my $self= shift;
 	$self->type($_[0]) if @_;
@@ -76,18 +78,21 @@ Read/write accessor for execinstr bit of flags
 =cut
 
 has flags       => ( is => 'rw' );
+
 sub flag_write {
 	my ($self, $value)= @_;
 	$self->flags( $self->flags & ~1 | ($value? 1 : 0) )
 		if defined $value;
 	$self->flags & 1;
 }
+
 sub flag_alloc {
 	my ($self, $value)= @_;
 	$self->flags( $self->flags & ~2 | ($value? 2 : 0) )
 		if defined $value;
 	$self->flags & 2;
 }
+
 sub flag_execinstr {
 	my ($self, $value)= @_;
 	$self->flags( $self->flags & ~4 | ($value? 4 : 0) )
@@ -121,7 +126,7 @@ Extra info, depending on section type.
 
 =head2 addralign
 
-Required alignment for the 'addr' field.  'Addr' must be a multiple of this
+Required alignment for the L</addr> field.  Addr must be a multiple of this
 value.  Values 0 and 1 both mean no alignment is required.
 
 =head2 entsize

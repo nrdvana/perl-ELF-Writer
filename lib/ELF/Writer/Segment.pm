@@ -14,8 +14,8 @@ The following are elf program header fields:
 
 =head2 type, type_sym
 
-Type of segment: 'null' (or undef), 'load', 'dynamic', 'interp', 'note',
-'shlib', or 'phdr'.  Defaults to 'load'.
+Type of segment: C<"null"> (or C<undef>), C<"load">, C<"dynamic">, C<"interp">, C<"note">,
+C<"shlib">, or C<"phdr">.  Defaults to C<"load">.
 
 =cut
 
@@ -80,15 +80,15 @@ Defaults to readable and executable.
 
 =head2 flag_readable
 
-Read/write the 'readable' bit of flags
+Read/write the C<readable> bit of flags
 
 =head2 flag_writable
 
-Read/write the 'writable' bit of flags
+Read/write the C<writable> bit of flags
 
 =head2 flag_executable
 
-Read/write the 'executable' bit of flags.
+Read/write the C<executable> bit of flags.
 
 =head2 align
 
@@ -130,7 +130,7 @@ The payload of this segment (machine code, or etc)
 =head2 data_start
 
 Used for auto-aligning segments within the elf file.  This is the number of
-bytes in the file which should come between 'offset' and your data.  Typical
+bytes in the file which should come between L</offset> and your data.  Typical
 use of this feature is to have the first segment start at offset 0 and include
 the elf header, with data starting somehwere beyond it.  If this is zero (or
 just less than the size of your elf header) then nearly a whole page will be
