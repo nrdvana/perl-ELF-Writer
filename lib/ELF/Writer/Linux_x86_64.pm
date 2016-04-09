@@ -3,11 +3,11 @@ use Moo 2;
 use namespace::clean;
 extends 'ELF::Writer';
 
-# ABSTRACT: ELF::Writer with defaults for Linux on x86_64
+# ABSTRACT: ELF::Writer with defaults for Linux on x86-64
 
 =head1 DESCRPTION
 
-This module is the same as writer, but supplies the following defaults
+This module is the same as L<ELF::Writer>, but supplies the following defaults
 when constructed:
 
 =head2 ELF attributes

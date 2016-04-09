@@ -4,7 +4,7 @@ use Carp;
 use IO::File;
 use namespace::clean;
 
-our $VERSION= '0.000_003';
+our $VERSION= '0.000_004';
 
 # ABSTRACT: Encode elf files with pure-perl
 
@@ -128,7 +128,7 @@ has header_version  => ( is => 'rw', default => sub { 1 } );
 
 =head2 osabi, osabi_sym
 
-8-bit integer, or one of: C<"SystemV">, C<"HP-UX">, C<"NetBSD">, C<"Linux">, C<"Solaris",
+8-bit integer, or one of: C<"SystemV">, C<"HP-UX">, C<"NetBSD">, C<"Linux">, C<"Solaris">,
 C<"AIX">, C<"IRIX">, C<"FreeBSD">, C<"OpenBSD">, C<"OpenVMS">.  Must be set before writing.
 
 =cut
@@ -587,12 +587,12 @@ sub _serialize_segment_header {
 	# 'flags' moves depending on 32 vs 64 bit, so changing the pack string isn't enough
 	return $self->_encoding < 2?
 		pack($self->_segment_header_packstr,
-			$seg->type, $seg->offset, $seg->virt_addr, $seg->phys_addr // 0,
+			$seg->type, $seg->offset, $seg->virt_addr, $seg->phys_addr || 0,
 			$filesize, $memsize, $seg->flags, $seg->align
 		)
 		: pack($self->_segment_header_packstr,
 			$seg->type, $seg->flags, $seg->offset, $seg->virt_addr,
-			$seg->phys_addr // 0, $filesize, $memsize, $seg->align
+			$seg->phys_addr || 0, $filesize, $memsize, $seg->align
 		);
 }
 
