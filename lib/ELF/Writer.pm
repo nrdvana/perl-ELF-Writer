@@ -507,7 +507,7 @@ sub serialize {
 		# Otherwise we just create a dummy to use below.
 		if (!defined $segment_table) {
 			$segment_table= ELF::Writer::Segment->new(
-				align => 8,
+				align => ($self->class == 2? 8 : 4),
 				filesize => length($segment_table_data),
 				data => $segment_table_data,
 			);
@@ -522,7 +522,7 @@ sub serialize {
 			for @sections;
 		
 		$section_table= ELF::Writer::Segment->new(
-			align => 8,
+			align => ($self->class == 2? 8 : 4),
 			filesize => length($section_table_data),
 			data => $section_table_data,
 		);

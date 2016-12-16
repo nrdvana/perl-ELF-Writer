@@ -6,6 +6,7 @@ use FindBin;
 use Log::Any::Adapter 'TAP';
 
 use ELF::Writer;
+use ELF::Writer::Linux_x86;
 use ELF::Writer::Linux_x86_64;
 
 subtest enums => \&test_enums;
@@ -69,11 +70,36 @@ sub test_return_42 {
 	$elf->entry_point( $elf->segments->[0]->virt_addr + $prog_offset );
 	
 	# Write out an elf file
-	$elf= $elf->serialize();
+	my $bytes= $elf->serialize();
 	my $expected= _slurp("$FindBin::Bin/data/return_42_Linux_x86_64");
-	is( $elf, $expected, 'file contents match' )
+	is( $bytes, $expected, 'file contents match' )
 		or do {
-			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $elf;
+			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $bytes;
+			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $expected;
+		};
+	
+	$elf= ELF::Writer::Linux_x86->new(
+		type => 'executable',
+		segments => [{
+			offset     => 0, # overlap with elf header
+			virt_addr  => 0x10000,
+			data       => "\x31\xC0\x40\xB3\x2A\xCD\x80",
+			data_start => undef
+		}]
+	);
+	
+	$prog_offset= $elf->elf_header_len + $elf->segment_header_elem_len;
+	$elf->segments->[0]->data_start( $prog_offset );
+	$elf->entry_point( $elf->segments->[0]->virt_addr + $prog_offset );
+	
+	$bytes= $elf->serialize();
+	open my $x, '>', "$FindBin::Bin/data/return_42_Linux_x86" or die;
+	print $x $bytes;
+	close $x;
+	my $expected= _slurp("$FindBin::Bin/data/return_42_Linux_x86");
+	is( $bytes, $expected, 'file contents match' )
+		or do {
+			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $bytes;
 			diag join ' ', map { sprintf("%02x", ord($_)) } split //, $expected;
 		};
 }
