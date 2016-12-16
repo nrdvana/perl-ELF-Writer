@@ -374,9 +374,9 @@ Handy alias for C<$#{ $elf->sections }>
 
 Handy alias for C<@{ $elf->sections }>
 
-=head2 section_name_string_table_index
+=head2 section_name_string_table_idx
 
-Insex into the section array of a string-table section where the names of
+Index into the section array of a string-table section where the names of
 the sections are stored.
 
 =cut

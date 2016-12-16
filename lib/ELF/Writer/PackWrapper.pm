@@ -1,4 +1,5 @@
-package ELF::Writer::PackWrapper;
+package # Hide from CPAN, since this module is not terribly re-usable (yet)
+	ELF::Writer::PackWrapper;
 use strict;
 use warnings;
 use Exporter 'import';
