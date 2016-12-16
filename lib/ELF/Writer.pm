@@ -9,7 +9,7 @@ BEGIN {
 }
 use namespace::clean;
 
-our $VERSION= '0.000_004';
+our $VERSION= '0.01';
 
 # ABSTRACT: Encode elf files with pure-perl
 
@@ -41,10 +41,9 @@ user-friendly features and sanity checks.
   $elf->write_file($binary_name);
   
   # Example above wastes almost 4K to align the first segment.
-  # We can overlap the first segment with the elf header, using this trick:
-  # http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
-  # Note that this moves our machine code, which can affect RIP-relative
-  # addressing.
+  # We can overlap the first segment with the elf header, so that the entire
+  # file gets paged into RAM, but then the entry point needs adjusted by the
+  # size of the ELF headers.
   
   my $prog_offset= $elf->elf_header_len + $elf->segment_header_elem_len;
   $elf->segments->[0]->offset(0);
@@ -714,3 +713,14 @@ require ELF::Writer::Segment;
 require ELF::Writer::Section;
 
 1;
+
+__END__
+
+=head1 SEE ALSO
+
+Brian Raiter has a nice write-up of how to hack around on ELF files, which
+I found very educational:
+
+http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
+
+=cut
