@@ -2,6 +2,11 @@ package ELF::Writer;
 use Moo 2;
 use Carp;
 use IO::File;
+BEGIN {
+	# Check if we need a wrapper for 'pack'
+	eval "use ELF::Writer::PackWrapper 'pack'"
+		unless eval{ pack('Q<',1) };
+}
 use namespace::clean;
 
 our $VERSION= '0.000_004';
@@ -280,10 +285,10 @@ sub elf_header_len {
 		: croak "Don't know structs for elf class $class";
 }
 our @Elf_Header_Pack= (
-	'a4 C C C C C a7 S< S< L< L< L< L< L< S< S< S< S< S< S<', # 32-bit LE
-	'a4 C C C C C a7 S> S> L> L> L> L> L> S> S> S> S> S> S>', # 32-bit BE
-	'a4 C C C C C a7 S< S< L< Q< Q< Q< L< S< S< S< S< S< S<', # 64-bit LE
-	'a4 C C C C C a7 S> S> L> Q> Q> Q> L> S> S> S> S> S> S>', # 64-bit BE
+	'a4 C C C C C a7 v v V V V V V v v v v v v', # 32-bit LE
+	'a4 C C C C C a7 n n N N N N N n n n n n n', # 32-bit BE
+	'a4 C C C C C a7 v v V Q< Q< Q< V v v v v v v', # 64-bit LE
+	'a4 C C C C C a7 n n N Q> Q> Q> N n n n n n n', # 64-bit BE
 );
 sub _elf_header_packstr {
 	my ($self, $encoding)= @_;
@@ -299,10 +304,10 @@ sub segment_header_elem_len {
 }
 # Note! there is also a field swap between 32bit and 64bit
 our @Segment_Header_Pack= (
-	'L< L< L< L< L< L< L< L<',
-	'L> L> L> L> L> L> L> L>',
-	'L< L< Q< Q< Q< Q< Q< Q<',
-	'L> L> Q> Q> Q> Q> Q> Q>',
+	'V V V V V V V V',
+	'N N N N N N N N',
+	'V V Q< Q< Q< Q< Q< Q<',
+	'N N Q> Q> Q> Q> Q> Q>',
 );
 sub _segment_header_packstr {
 	my ($self, $encoding)= @_;
@@ -317,10 +322,10 @@ sub section_header_elem_len {
 		: croak "Don't know structs for elf class $class";
 }
 our @Section_Header_Pack= (
-	'L< L< L< L< L< L< L< L< L< L<',
-	'L> L> L> L> L> L> L> L> L> L>',
-	'L< L< Q< Q< Q< Q< L< L< Q< Q<',
-	'L> L> Q> Q> Q> Q> L> L> Q> Q>',
+	'V V V V V V V V V V',
+	'N N N N N N N N N N',
+	'V V Q< Q< Q< Q< V V Q< Q<',
+	'N N Q> Q> Q> Q> N N Q> Q>',
 );
 sub _section_header_packstr {
 	my ($self, $encoding)= @_;
@@ -704,7 +709,7 @@ sub _apply_segment_defaults {
 	}
 }
 
-# Load last so make sure data is initialized
+# Loaded last, to make sure all data in this module is initialized
 require ELF::Writer::Segment;
 require ELF::Writer::Section;
 
