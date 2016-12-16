@@ -349,11 +349,11 @@ the constructor which will be coerced automatically.
 
 =head2 segment_count
 
-Handy alias for C<$#{ $elf->segments }>
+Handy alias for C<< $#{ $elf->segments } >>
 
 =head2 segment_list
 
-Handy alias for C<@{ $elf->segments }>
+Handy alias for C<< @{ $elf->segments } >>
 
 =cut
 
@@ -368,11 +368,11 @@ the constructor which will be coerced automatically.
 
 =head2 section_count
 
-Handy alias for C<$#{ $elf->sections }>
+Handy alias for C<< $#{ $elf->sections } >>
 
 =head2 section_list
 
-Handy alias for C<@{ $elf->sections }>
+Handy alias for C<< @{ $elf->sections } >>
 
 =head2 section_name_string_table_idx
 
@@ -721,6 +721,6 @@ __END__
 Brian Raiter has a nice write-up of how to hack around on ELF files, which
 I found very educational:
 
-http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
+L<http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html>
 
 =cut
